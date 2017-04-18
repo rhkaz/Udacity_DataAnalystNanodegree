@@ -1,0 +1,231 @@
+---
+title: 'Project 1: Test a Perceptual Phenomenon'
+author: "Rashid Kazmi"
+date: "13/02/2017"
+output:
+  html_document:
+    fig_caption: yes
+  pdf_document:
+    fig_caption: yes
+---
+
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+# Statistics: The Science of Decisions 
+## Background 
+In a Stroop task, participants are presented with a list of words, with each word displayed in a color of ink. The participant’s task is to say out loud the color of the ink in which the word is printed. The task has two conditions: a congruent words condition, and an incongruent words condition. In the congruent words condition, the words being displayed are color words whose names match the colors in which they are printed: for example RED, BLUE. In the incongruent words condition, the words displayed are color words whose names do not match the colors in which they are printed: for example PURPLE, ORANGE. In each case, we measure the time it takes to name the ink colors in equally-sized lists. Each participant will go through and record a time from each condition.
+
+```{r setup1, message = FALSE}
+# Install these packages if they are missing
+library(knitr)
+library(readr)
+library(tidyr)
+library(dplyr)
+library(ggplot2)
+library(ggthemes)
+
+```
+
+
+```{r, message=FALSE}
+# Read in Data
+stroop_data <- read_csv("stroopdata.csv")
+# View data
+head(stroop_data)
+tail(stroop_data) 
+
+# Check structure of the data
+str(stroop_data)
+
+# Reshape data in long format
+stroop_data_long <- stroop_data %>%
+                    gather(key = Condition, value = ResponseTime)
+
+```
+# Variables
+* The independent variable is whether the words shown are congruent with the ink colors or if they are incongruent with ink colors. 
+* Condition: Independent Variable
+    + Congruent
+    + Incongruent
+
+* ResponseTime: Dependent Variable
+
+# Dependent-Samples t-tests
+We can formulate hypothesis that there is a difference between the time used to recognise colours under congruent words condition and incongruent words condition, namely, the Stroop Effect is in existence.
+Specifically, here we referring to the population means of congruence words condition and incongruence words condition - average times for the respective condition to recognise the colours. By comparing these means directly, we’ll be able to tell whether there is a difference between the the two conditions’ colour recognition times. 
+
+$$H_0 : \mu_2 - \mu_1= 0$$ 
+
+$$H_1 : \mu_2 - \mu_1 \neq 0$$  
+
+--- Null Hypothesis $H_0 : \mu_2 - \mu_1= 0$ :: The group population mean of the differences ($\mu_2 - \mu_1= 0$) equals the zero.
+
+
+--- Alternative Hypothesis $H_1 : \mu_2 - \mu_1 \neq 0$:: The group population mean of the difference ($\mu_2 - \mu_1 \neq 0$) does not equal to zero.
+
+## Statistical test
+
+In this study researcher compares two samples that are dependent. They are dependent because the same subject are assigned to two conditions in random order. Thus, this is within subject design. When we have these within subject designs, we have parired data. So column of x~i~’s would corresponds to the variable measurement of one condition. And then the y~i~ values would corresponds to a second treatment. And then, what we want to do is look at the difference between these values, We’ll call this D sub i. And thats just the x values minus the y values. Or it could be be the opposite. We are really just concerned with absolute difference. Now we follow the same procedure as we did before with one sample t-test, except we used values of D.
+
+However, it wouldn’t be possible to do the experiment with all potential subjects in the world, so we need to work with the sample we have on hand to make inference about the population means, i.e., to use the observation means, sd and other statistics to infer about the population means. In this case, the observation is the difference between the two conditions’ times. With this new data, we can construct new statistics such as means and standard errors.
+
+To achieve this, We can use a two-sided paired student t-test to verify. This is because: one, we need to address the uncertainty in sample standard error resulted from the unknown population standard deviation; two, we are comparing the means of two groups that are dependent; three, the same subject is involved under both conditions.
+
+
+We know the formula for the one-sample t-test:
+
+$$ t=\frac{\bar{X} - \mu_{\bar(X)}}{s_{\bar{X}}}$$
+
+Difference scores are symbolised with D instead of X. So if you were to conduct a one-sample t-test with difference scores, the formula would be:
+
+$$ t=\frac{\bar{D}-\mu_{\bar{D}}}{s_{\bar{D}}} $$
+Therefore the mean spelling ability before ($\mu_1$) is the same as the mean spelling ability after the program($\mu_2$). Thus if $\mu_1$ = $\mu_2$,then $\mu_1$ - $\mu_1$ = 0. Why? Because any number minus itself is 0 (e.g., 202 - 202 = 0). Even though we have no idea what the $\mu_1$ and $\mu_2$ are, the null hypothesis implies that the difference between them ($\mu_D$) is zero.The null hypothesis always says that the mean difference in the population is $\mu_D$ = 0. Knowing that the population mean of the difference scores is 0, we can simplify the paired-samples t-test formula to:
+
+$$t=\frac{\bar{D}}{s_{\bar{D}}}$$
+
+This means that the observed t is equal to the sample mean of the difference scores divided by the estimated standard error of the difference scores. What is special about this formula is that it contains no population parameters, only sample statistics. It is for this reason that paired-samples t-tests are widely used: There is no need to know any population parameters in advance.
+
+$$ t= \frac{\mu_D - 0}{S/\sqrt{n}}$$
+
+# Descriptive Statistics
+```{r}
+# Summarise data by group
+sumstat <- stroop_data_long %>%
+        group_by(Condition) %>%
+        summarise(N = length(ResponseTime),
+                 Mean = mean(ResponseTime),
+                 SD = sd(ResponseTime),
+                 SE = SD/sqrt(N)) 
+
+# Display sumstat
+library(knitr)
+
+# Summarise whole data set
+total_sumstat <- stroop_data_long %>%
+              summarise(Condition = "Total",
+                        N = length(ResponseTime),
+                        Mean = mean(ResponseTime),
+                        SD = sd(ResponseTime),
+                        SE = SD/sqrt(N))
+
+# Now we combine data into one object 
+combined_sumstat <- rbind(sumstat, total_sumstat)
+               
+```
+
+
+```{r MakeTable}
+
+# Make Table 
+  knitr::kable(combined_sumstat, 
+               digits = 2,
+               caption = "Descriptive Statistics for ResponseTime")
+
+```
+
+# Data Viusalistaion
+
+## Bar Plot 
+```{r Bar Plot, fig.cap=" Bar Plot: A Bar Plot showing Means, and Standard Errors for Congruent and Incongruent Condition"}
+
+  ggplot(data = stroop_data_long, aes(x = Condition, y = ResponseTime, fill =  Condition)) +
+        stat_summary(fun.y = "mean", geom = "bar") +
+        stat_summary(fun.data = "mean_cl_normal", geom = "errorbar", width = 0.1) +
+        theme_bw()
+```
+
+## Boxplot 
+```{r Box Plot, fig.cap="Boxplot showing distribtion of the data: In each group, the small pyramid indicates the median value, the shaded area represents the lower and upper quartiles, and the crosses show the minimum and maximum values in the data.The whiskers are roughly the middle 95% CI.The points are outliers"}
+
+  ggplot(data = stroop_data_long, aes(x = Condition, y = ResponseTime, fill = Condition)) +
+      geom_boxplot() +
+      theme_bw()
+```
+
+## Combined Violin and Notched Boxplot
+```{r Dot Plot,  fig.cap="Combined Violin and Notched Boxplot: As we see, the notches for the congruent and incongruent words condition don’t overlap, so there is strong evidence to suggest that their medians are significantly different."}
+
+ggplot(data = stroop_data_long, aes(x = Condition, y = ResponseTime, fill = Condition)) + 
+      geom_violin(alpha = 0.5, color = NA) +
+      geom_boxplot(notch = TRUE, width = 0.5) + 
+      theme_bw()
+```
+
+## Dot Plot Point Range
+```{r DotPlotPointRange,  fig.cap = "Dot Plot with PointRange Showing Means and 95% CI: Plotting points summarising the data  to plot the means of the two condition with an estimate of 95% confidence interval representing the precision of an estimate. A 95% confidence interval means that 95% of the time, the population mean will be within that interval and 5% of the time, the population mean will be outside of that interval. This means you can be 95% confident that the population mean is within your confidence interval."}
+
+library(ggplot2)
+library(ggthemes)
+
+ggplot(data = stroop_data_long, aes(x = Condition, y = ResponseTime, fill = Condition)) + 
+    geom_dotplot(binaxis = "y", stackdir = "center",binwidth = .4, alpha = 0.5, color = NA) +
+    stat_summary(fun.data = "mean_cl_normal", geom = "pointrange", width = 0.1, 
+                                         color = c("royalblue","firebrick"), lwd = 1.5) + 
+    theme_bw()
+    
+
+```
+
+```{r mu_diff}
+# H0:μ2−μ1 = 0
+# H1:μ2−μ1 ≠ 0
+
+# the null value
+mu_diff <- 0 
+# add a new diff column
+dat.diff <- mutate(stroop_data, diff = Congruent - Incongruent)
+# grab all the diff values into a vector
+diff <- dat.diff$diff 
+# sample sd
+sigma <- sd(diff) 
+# sample mean
+diff_bar <- mean(diff) 
+# sample size
+n <- length(diff)
+# degree of freedom
+DF <- n - 1 
+# standard error
+SE <- sigma/sqrt(n) 
+# Calculate the T-statistic:
+T <- (diff_bar- mu_diff)/SE; T
+```
+
+```{r p-value}
+# Calculate the p-value
+p_value <- pt(T, df = DF, lower.tail = TRUE) * 2; p_value
+```
+
+```{r CI}
+# Build the confidence interval based on 5% confidence level
+diff_bar + c(1, -1) * qt(.975, df = DF, lower.tail = FALSE) * SE
+```
+
+
+# Running the Dependent Samples t-test
+```{r ttest}
+ttest <- t.test(ResponseTime ~ Condition, data = stroop_data_long, 
+                                paired = TRUE, mu = 0, conf.level = 0.95)
+
+tvalue <- ttest$statistic %>% 
+          formatC(digit = 2, format = "f")
+
+
+pvalue <- ttest$p.value %>%
+          formatC(digit = 2, format = "f")
+
+df <- ttest$parameter 
+
+ttest
+tvalue
+df
+pvalue
+
+
+```
+
+# Results
+As can be seen in Table 1 and Figure 1, 2, 3, 4, the mean of Incourgent words condition is significantly higher than the mean of Courgent words condition, $t(`r df`) = `r tvalue`, p < `r pvalue`$. Thus, we reject null hypothesis that difference in means is equal to 0. One can say thatt naming the colours of colour words (e.g. the words 'green', 'red', 'blue', etc.) is easier and quicker if the actual observed colours of the words match the colors that the words denote (e.g. the colors green, red, blue, etc., respectively) than if they do not match. More precisely, we can say there is a significant difference in the mean task completion times between the two conditions.
+
+
