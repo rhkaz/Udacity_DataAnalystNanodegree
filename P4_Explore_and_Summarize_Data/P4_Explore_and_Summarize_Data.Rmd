@@ -1,0 +1,1682 @@
+---
+title: "P4: Explore and Summarize Data"
+author: "Rashid Kazmi"
+date: "21/04/2017"
+output: 
+  html_document:
+    toc: true
+    toc_depth: 3
+    toc_float: true
+---
+
+```{r global_options, include=FALSE}
+knitr::opts_chunk$set(echo=FALSE, warning=FALSE, message=FALSE)
+```
+
+Introduction 
+========================================================
+
+Lending Club is the world’s largest peer-to-peer lending company, offering a platform for borrowers and lenders to work directly with one another, eliminating the need for a financial intermediary like a bank. Removing the middle-man generally allows both borrowers and lenders to benefit from better interest rates than they otherwise would, which makes peer-to-peer lending an attractive proposition. 
+
+In this first post, I’ll cover some of the background on Lending Club, talk about getting and cleaning the loan data, and perform some exploratory analysis on the available variables and outcomes. In subsequent section, I’ll work on developing a predictive model for determining the loan default probabilities. Before investing, it is always important to fully understand the risks, and this post does not constitute investment advice in either Lending Club or in Lending Club notes.
+
+
+```{r echo=FALSE, message=FALSE, warning=FALSE, packages}
+library(ggplot2)
+library(readr)
+library(dplyr)
+library(ggplot2)
+library(rMaps)
+library(lubridate)
+library(RColorBrewer)
+library(GGally)
+library(reshape2)
+library(memisc)
+library(knitr)
+library(mice)
+library(ggthemes)
+library(corrplot)
+library(corrgram)
+library(lubridate)
+library(caret)
+library(ggplot2)
+library(tidyr)
+library(vcd)
+library(data.table)
+library(caTools)
+library(htmltools)
+```
+
+```{r echo=FALSE, Load_the_Data}
+prosper = tbl_df(read.csv("prosperLoanData.csv", stringsAsFactors = FALSE))
+pld <- prosper
+
+```
+
+# Useful Functions
+
+It was apparent by looking at variable columns there were several variable suitable for combining. I wrote several functions to reduce number of variable into small groups. 
+
+Reduce LoanStatus to three groups:
+
+* Performing
+* NonPerforming
+
+Reduce Occupation to five groups:
+
+* HiglySkilled
+* Skilled
+* UnSkilled
+* SemiSkilled
+* Student
+
+Reduce LoanStatus to three groups:
+
+* Employed
+* Unemployed
+* Other
+
+Reduce the loan purpose to five groups:
+
+* Debt Consolidation Loan
+* Home Improvement Loan
+* Business Loan
+* Studen Loan
+* Personal Loan
+
+
+```{r, Useful_Functions}
+# Reduce loan status to binary "Performing" and "NonPerforming" Measures:
+loan_group <- function (loan) {
+                       loan <- as.character(loan)
+                       if (loan =='Completed' | loan =='Current' |                                    loan=='FinalPaymentInProgress'){
+                         return('Performing')
+                       }else{
+                         return("NonPerforming")
+                     }
+                   }
+
+
+# Reduce the occupation into small groups 
+group_occupation <- function(occu){
+                            if (occu %in% HiglySkilled ){
+                              return('HiglySkilled ')
+                            }else if (occu %in% Skilled){
+                              return('Skilled')
+                            }else if (occu  %in% UnSkilled ){
+                              return('UnSkilled ')
+                            }else if (occu %in% SemiSkilled){
+                              return("SemiSkilled")
+                            }else{
+                             return('Student')      
+                      }
+                    }
+
+
+# Reduce the employment into groups 
+group_emp <- function(job){
+                     if (job == "Employed" | job == "Full-time " |
+                        job ==     "Part-time" | job == "Self-employed"){
+                        return("Employed")
+    
+                     }else if (job == "Not employed" | job == "Retired"){
+                       return("Unemployed")
+
+                     }else{
+                       (job == "Not available" | job == "Other")
+                       return("Other")
+                  }
+                }
+
+
+# Convert the range into percentages 
+group_percent_dti <- function(col){
+                             if (col == "(0,5]"){
+                               return("0-5%")
+                             }
+                             if (col == "(5,10]"){
+                               return("5-10%")
+                             }else{
+                               return("10-15%")
+                       } 
+                     }
+
+
+# used to create % pages of reloving dataset
+group_revolving <- function(col){
+                           if (col == "(0,20]"){
+                             return("0-20%")
+                           }else if (col == "(20,30]"){
+                             return('20-30%')
+                           }else if (col == "(30,40]"){
+                             return("30-40%")
+                           }else if (col == "(40,50]"){
+                             return("40-50%")
+                           }else if (col == "(60,70]"){
+                             return("60-70%")
+                           }else if (col == "(70,80]"){
+                             return("70-80%")
+                           }else {
+                             return('80%+')      
+                       }
+                     }
+
+
+# Reduce the loan into small groups
+group_loan_purpose <- function(loan){
+                              if (loan == "Debt Consolidation"){
+                                return("Debt Consolidation Loan")
+                              }else if (loan == "Home Improvement"){
+                                return('Home Improvement Loan')
+                              }else if (loan == "Business"){
+                                return("Business Loan")
+                              }else if (loan == "Student Use"){
+                                return("Student Loan")
+                              }else {
+                                return("Personal Loan")      
+                            }
+                          }
+```
+
+# Counting Missing Values 
+
+There are two types of missing data:
+
+ * MCAR: missing completely at random. This is the desirable scenario in case of missing data.
+ * MNAR: missing not at random. Missing not at random data is a more serious issue and in this case it might be wise to check the data gathering process further and try to understand why the information is missing. For instance, if most of the people in a survey did not answer a certain question, why did they do that? Was the question unclear?
+
+```{r echo=FALSE, Count_missing_Values}
+#na_count <- data.frame(na_count)
+#na_count <- data.frame(na_count)
+
+na_count <- sapply (prosper, function (y) sum (length (which (is.na (y))))) 
+
+na_count_df <- data.frame (na_count)
+
+na_count_df <- na_count_df %>%
+  mutate (variable_name = rownames (na_count_df)) %>%
+  arrange (desc (na_count))
+
+na_count_percent <- 
+  sapply (prosper, function(x) { sum (is.na (x)) / length (x) * 100 })
+
+na_count_df_percent <- data.frame (na_count_percent)
+na_count_df_percent <- na_count_df_percent %>%
+  mutate (variable_name = rownames (na_count_df_percent)) %>%
+  arrange( desc (na_count_percent))
+
+head (na_count_df_percent)
+```
+
+# Imputing Missing Data
+
+Assuming data is MCAR, too much missing data can be a problem too. Usually a safe maximum threshold is 5% of the total for large datasets. If missing data for a certain feature or sample is more than 5% then you probably should leave that feature or sample out. I therefore checked for features (columns) and samples (rows) where more than 5% of the data is missing using a simple above function.
+
+```{r echo=FALSE, Select_Features}
+## Remove variables from data set with missing values of > 25% and 80 %
+prosper_removed_original <- prosper %>% 
+  dplyr::select(
+    -EstimatedEffectiveYield,
+    -EstimatedLoss,
+    -EstimatedReturn,
+    -ProsperRating..numeric.,
+    -ProsperScore,
+    -LoanFirstDefaultedCycleNumber, 
+    -ScorexChangeAtTimeOfListing,
+    -TotalProsperPaymentsBilled,
+    -OnTimeProsperPayments,
+    -ProsperPaymentsLessThanOneMonthLate,
+    -ProsperPaymentsOneMonthPlusLate,
+    -ProsperPrincipalBorrowed,
+    -ProsperPrincipalOutstanding
+)
+
+prosper_removed <- prosper_removed_original
+#dim(prosper_removed)
+#prosper_removed
+
+```
+
+# Missing Values Imputation: 
+## R; MICE package  
+
+I used “mice” R package for the imputation of missing values. The mice package in R, helps you imputing missing values with plausible data values. These plausible values are drawn from a distribution specifically designed for each missing data point. The mice () function takes care of the imputing process.
+
+```{r echo = FALSE, Select_Missing_Data}
+# Take variable with around 5 % missing values 
+# impute missing data
+
+prosper_removed_to_imputed <- prosper_removed %>%
+  dplyr::select(
+    -EmploymentStatusDuration,
+    -AmountDelinquent,
+    -CurrentCreditLines,
+    -PublicRecordsLast12Months,
+    -RevolvingCreditBalance,
+    -BankcardUtilization,
+    -TotalTrades,
+    -TradesNeverDelinquent..percentage.,
+    -TradesOpenedLast6Months,
+    -TotalInquiries,
+    -DelinquenciesLast7Years,
+    -TotalCreditLinespast7years,
+    -InquiriesLast6Months,
+    -CurrentDelinquencies,
+    -PublicRecordsLast10Years,
+    -CreditScoreRangeLower,
+    -CreditScoreRangeUpper,
+    -BorrowerAPR
+)
+
+prosper_removed_to_imputed_ext <- prosper_removed_to_imputed
+```
+
+Please note I did imputation using amazon server as this was not possible on local machine.
+
+```{r echo = FALSE, Impute_Missing_Data}
+## Impute missing using library(mice)
+
+
+# prosper_removed_to_imputed [,1:19] <- apply (prosper_removed_to_imputed [,1:19], 2, function (x) as.numeric (as.character (x)))
+# dataset_impute <- mice (prosper_removed_to_imputed [,1:19],  print = FALSE)
+# prosper_removed_to_imputed <- cbind (prosper_removed_to_imputed [, 2, drop = FALSE], mice::complete (dataset_impute, 1))
+
+```
+
+
+```{r echo = FALSE,Read_Imputed_File}
+
+prosper_removed_to_imputed_complete <- read.csv  ("combined_imputed_removed_missing_data_selection.csv")
+
+prosper_removed_to_imputed_complete <- 
+  prosper_removed_to_imputed_complete [,-1]
+
+prosper_num <- sapply (prosper_removed_to_imputed_complete, is.numeric)
+
+prosper_removed_to_imputed_complete_num <-
+  prosper_removed_to_imputed_complete[, prosper_num]
+
+pld_14 <- prosper_removed_to_imputed_complete
+```
+
+# Feature Engineering 
+
+For each loan in the file, Lending Club provides an indication of the current loan status. Because many of the loan statuses represent similar outcomes, I’ve mapped them from prosper loan data’s 7 down to only 2, simplifying the problem of classifying loan outcomes without much loss of information useful for investment decisions. My two outcomes “Performing” and “NonPerforming” seek to separate those loans likely to pay in full from those likely to default. 
+
+Reduce LoanStatus to three groups:
+
+* Performing
+* NonPerforming
+
+```{r echo = FALSE, Loan_Statsu_2}
+
+prosper_removed$LoanStatus <- sapply (prosper_removed$LoanStatus, loan_group)
+
+table (prosper_removed$LoanStatus)
+```
+
+Reduce LoanStatus to five groups:
+
+* HiglySkilled
+* Skilled
+* UnSkilled
+* SemiSkilled
+* Student
+
+
+```{r echo = FALSE, Occupation_1}
+#table(pld$Occupation)
+
+HiglySkilled <- c("Judge", "Analyst","Chemist", "Dentist", "Attorney ",
+                  "Principal","Professor", "Pharmacist", "Accountant/CPA",
+                  "Computer Programmer", "Engineer - Chemical",
+                  "Engineer - Mechanical","Professional","Scientist",
+                  "Architect","Executive","Psychologist",
+                  "Pilot - Private/Commercial", "Biologist","Doctor",
+                  "Engineer - Electrical")
+
+Skilled  <- c("Clergy", "Landscaping", "Skilled Labor","Military Enlisted",
+              "Retail Management ","Teacher","Investor","Religious","Food
+              Service", "Management","Military Officer","Medical
+              Technician","Police Officer/Correction Officer","Civil Service",
+              "Nurse's Aide", "Nurse (LPN)")
+
+SemiSkilled <-  c("Fireman", "Realtor", "Homemaker", "Bus Driver", 
+                  "Sales - Retail", "Teacher's Aide","Waiter/Waitress",
+                  "Tradesman - Plumber","Tradesman - Electrician",
+                  "Postal Service","Truck Driver","Tradesman - Mechanic",
+                  "Car Dealer","Flight Attendant","Sales - Commission",
+                  "Administrative Assistant", "Nurse (RN)",
+                  "Tradesman - Carpenter", "Food Service", "Clerical", 
+                  "Social Worker")
+
+UnSkilled <-c("Laborer", "Construction", "Other")
+
+Student <- c("Student - College Junior", "Student - Technical School",
+             "Student - College Sophomore", "Student - College Senior",
+             "Student - Community College", 
+             "Student - College Graduate Student")
+
+```
+
+```{r echo = FALSE, Occupation_3}
+
+prosper_removed$Occupation <-
+  sapply (prosper_removed$Occupation, group_occupation)
+
+table (prosper_removed$Occupation)
+```
+
+Reduce LoanStatus to three groups:
+
+* Employed
+* Unemployed
+* Other
+
+```{r echo = FALSE, Employment_Status}
+
+prosper_removed$EmploymentStatus <-
+  sapply (prosper_removed$EmploymentStatus, group_emp)
+
+table (prosper_removed$EmploymentStatus)
+```
+
+
+```{r plot_11_ListingCatagory, cache = TRUE,echo = FALSE, warning=FALSE}
+
+prosper_removed$ListingCategoryN = factor(pld$ListingCategory..numeric.,
+                                          levels = c(1:6,8:20,7,0),
+                                          labels = c('Debt Consolidation',
+                                                     'Home Improvement',
+                                                     'Business',
+                                                     'Personal Loan',
+                                                     'Student Use',
+                                                     'Auto',
+                                                     'Baby & Adoption',
+                                                     'Boat',
+                                                     'Cosmetic Procedure',
+                                                     'Engagement Ring',
+                                                     'Green Loans',
+                                                     'Household Expenses',
+                                                     'Large Purchases',
+                                                     'Medical/Dental',
+                                                     'Motorcycle', 'RV',
+                                                     'Taxes', 'Vacation',
+                                                     'Wedding Loans',
+                                                     'Other',
+                                                     'Not Available'
+                                                     ))
+
+#table (prosper_removed$ListingCategoryN)
+```
+
+
+Reduce the loan purpose to five groups:
+
+*Debt Consolidation Loan
+*Home Improvement Loan
+*Business Loan
+*Studen Loan
+*Personal Loan
+
+```{r echo=FALSE, LoanPurpose_grouping}
+## Add column "LoanPurpsoe"
+
+prosper_removed <- 
+  dplyr::mutate (prosper_removed, LoanPurpose =  ListingCategoryN)
+
+prosper_removed$LoanPurpose <- 
+  sapply (prosper_removed$LoanPurpose, group_loan_purpose)
+
+table (prosper_removed$LoanPurpose)
+```
+
+# Feature Selection
+
+Often, we have features that are highly correlated and thus provide redundant information. By eliminating highly correlated features we can avoid a predictive bias for the information contained in these features. This also shows us, that when we want to make statements about the importance of specific features, we need to keep in mind that just because they are suitable to predicting an outcome they are not necessarily causal - they could simply be correlated with causal factors.
+
+```{r echo=FALSE,Correlation_plot}
+# calculate correlation matrix
+prosper_num <- sapply (prosper_removed_to_imputed_complete, is.numeric)
+
+prosper_removed_to_imputed_complete_num <-
+  prosper_removed_to_imputed_complete[, prosper_num ]
+
+pld_15 <- prosper_removed_to_imputed_complete
+
+```
+
+Correlations between all features are calculated and visualised with the copilot package. Here, we have more variation between the features: some are highly correlated, while others seem to be very distinct. 13 are flagged for removal. I am then removing all features with a correlation higher correlation.
+
+```{r echo=FALSE,Correlation_filtering}
+#Apply correlation filter at 0.70,
+prticn <- prosper_removed_to_imputed_complete_num
+corMatMy <- cor (prosper_removed_to_imputed_complete_num)
+
+highlyCor <-
+  colnames(prticn[findCorrelation(corMatMy, cutoff = 0.7, verbose = TRUE)])
+```
+
+```{r echo=FALSE,flagged_filtering}
+# which variables are flagged for removal?
+
+highlyCor
+
+```
+
+```{r echo = FALSE,flagged_filtering_removal}
+#then we remove these variables
+
+prosper_removed_to_imputed_complete_num_cor <-
+  prosper_removed_to_imputed_complete_num[,which(!colnames(
+    prosper_removed_to_imputed_complete_num) %in% highlyCor)]
+```
+
+Finally, I had a cleaned set of variables to work with.
+
+```{r echo=FALSE, Select_Features_2}
+
+prosper_removed_to_imputed_complete_final_selection <-
+  read.csv("combined_imputed_feature_model_highlyCorr_removed_all.csv")
+
+prosper_removed_to_imputed_complete_final_selection <-
+  dplyr::select(prosper_removed_to_imputed_complete_final_selection,
+                -X.1, -X)
+
+df_ttest <- prosper_removed_to_imputed_complete_final_selection
+
+pld_final <- prosper_removed_to_imputed_complete_final_selection
+
+pld_final$LoanPurpose_1 <- sapply (pld_final$LoanPurpose, group_loan_purpose)
+
+#table (pld_final$LoanPurpose_1)
+# dim(pld_final)
+# names(pld_final)
+
+```
+
+# Structure Of Data 
+
+This dataset has 113937 observations and 81 variables. There are some numeric variables (e.g., RevolvingCredit, BorrowerRate, etc.). Once I had data munging/wrangling done. We have modified and added features to our remaining data set. These features will be key in our analysis. However, I chose following variables by intuition for detailed exploratory analysis.
+
+```{r echo = FALSE, Select_Features_3}
+
+str (pld_final)
+```
+# Choosen Variables
+
+* IncomeRange
+* IncomeVerifiable
+* AmountDelinquent
+* DelinquenciesLast7Years
+* DebtToIncomeRatio
+* RevolvingCreditBalance
+* Term
+* BorrowerAPR
+* InquiriesLast6Months
+* ListingCategory..numeric.
+* LoanStatus
+* EmploymentStatus
+* Occupation
+* IsBorrowerHomeowner
+* BorrowerState
+
+# Feature Viusalisation I 
+## Univariate Plots 
+
+
+### Income Range Of Borrowers
+
+The first thing I would like to explore is the income range of the borrowers. We could see that most of the borrowers have income ranging from $25,000 to $75,000.
+
+```{r plot_1_Icome_Rnage, echo=FALSE, fig.show = "center"}
+
+pld_final$IncomeRange_2 <- factor(pld_final$IncomeRange, 
+                                  c("$0","$1-24,999", "$25,000-49,999",
+                                    "$50,000-74,999", "$75,000-99,999",
+                                    "$100,000+", "Not displayed", 
+                                    "Not employed"))
+
+## Creare plots for the data
+
+ggplot (data = pld_final, aes(x = factor (IncomeRange_2))) +
+  geom_bar (color = "black", fill = "green") + 
+  xlab ("Income Range (Dollars)") +
+  ggtitle ("Income Range Of Borrowers") + 
+  theme_economist () +
+  coord_flip ()
+
+```
+
+```{r}
+summary (pld_final$IncomeRange)
+```
+
+The income of most borrowers ranges from $25,000 - $74,999. To my surprise, there are 806 borrowers with zero income successfully got the loan. Although it’s not clearly stated in the dataset, my guess is here ‘the income’ means the income from employment rather than from all sources. Maybe exploring more information about those borrowers would make it clearer that why they can get the loan.
+
+### Income Verifiable
+
+Next I check how many of the incomes are verifiable.
+
+```{r plot_2_IncomeVerifiable, cache = TRUE, echo = FALSE}
+
+pld_final$IncomeVerifiable <- ifelse (pld_final$IncomeVerifiable == 0,
+                                      "Yes", "No")
+
+pld_final$IncomeVerifiable_2 <- factor (pld_final$IncomeVerifiable,
+                                        c('Yes', 'No'))
+
+## Create plots for the data
+
+ggplot(data = pld_final, aes(x = IncomeVerifiable_2)) +
+  geom_bar() +
+  geom_bar(color = "black", fill = "green") +
+  ggtitle("Is Income Verifiable?") +
+  theme_economist() 
+```
+
+```{r plot_3_IncomeVerifiable, cache=TRUE, echo=FALSE}
+
+table (pld_final$IncomeVerifiable)
+```
+We can see that about 92.4% of incomes are verifiable. So we could trust the income range.
+
+
+### Amount Delinquent
+
+Next, I want to investigate the delinquent amount of the borrower.
+
+```{r plot_3_AmountDelinquent,cache=TRUE,echo=FALSE, warning=FALSE}
+
+ggplot (data = pld_final, aes(x = AmountDelinquent)) +
+  geom_histogram (color = "black", fill = "green", binwidth = 100) +
+  xlim (0, quantile (prosper$AmountDelinquent, 0.95, na.rm=TRUE)) +
+  xlab ("Amount in Dollars") +
+  ggtitle ("Delinquent Amount") +
+  theme_economist ()
+```
+
+```{r plot_4_AmountDelinquent,cache = TRUE,echo = FALSE, warning=FALSE}
+
+summary (pld_final$AmountDelinquent)
+```
+
+We can see that the delinquent amount is heavily right skewed with 97440 entries of the data equal to 0. So let's make another plot.
+
+```{r plot6_3,cache=TRUE,echo=FALSE, warning=FALSE}
+
+dim (pld_final[pld_final$AmountDelinquent==0, ])
+```
+
+```{r plot6_4_2, cache = TRUE,echo = FALSE, warning = FALSE}
+
+ggplot (data = pld_final, aes (x = AmountDelinquent)) +
+  geom_histogram (color = "black", fill = "green", binwidth = 30) +
+  xlim(10, 3000) +
+  xlab ("Amount in Dollars") +
+  ggtitle ("Delinquent Amount") +
+  theme_economist ()
+```      
+
+We can see that except for the borrowers with no delinquent amount, most other borrowers have less than $500 delinquent amount.
+
+### Delinquencies Last 7 Years
+
+```{r plot_5_DelinquenciesLast7Years,cache=TRUE,echo=FALSE, warning=FALSE}
+
+ggplot (data = pld_final, aes (x = DelinquenciesLast7Years))+
+  geom_bar (color = "black", fill = "green") +
+  xlim (1, 100) +
+  xlab ("Amount in Dollars") +
+  ggtitle ("DelinquenciesLast7Years") +
+  theme_economist ()
+```
+
+```{r plot_6_DelinquenciesLast7Years,cache=TRUE,echo=FALSE, warning=FALSE}
+
+summary (pld_final$DelinquenciesLast7Years)
+```
+
+The number of delinquencies in the past 2 years indicates the number of times a borrower has been behind on payments. We can see there is a long right-tailed distribution.
+
+
+### Debt To Income Ratio
+
+Another interesting variable is DebtToIncomeRatio, which shows the debt to income ratio when the borrower's profile was pulled.
+
+```{r plot_6_DebtToIncomeRatio, cache=TRUE,echo=FALSE}
+
+ggplot (data = pld_final, aes (x = DebtToIncomeRatio)) +
+  geom_histogram (color = "black", fill = "green", binwidth = 0.02) +
+  xlab ("Debt To IncomeRatio") +
+  xlim (0, quantile(prosper$DebtToIncomeRatio, prob = 0.99, na.rm=TRUE)) +
+  ggtitle ("Debt To Income Ratio") +
+  theme_economist ()
+```
+
+```{r plot_7_DebtToIncomeRatio, cache=TRUE,echo=FALSE}
+
+summary (pld_final$DebtToIncomeRatio)
+```
+
+I see a huge gap between the 3rd quartile and the maximum and a simple calculation tells me they are 31 times away. After limiting the ratio to less or equal to 1, we include more than 99% of the data but get a much finer graphic. The distribution has a bell shape and is right-skewed. And if we call the function quantile (loan$DebtToIncomeRatio, 0.95, na.rm = T), it tells us 95% of the borrowers keep their DTI ≤ 1. Of course, besides paying the debt people get life to live and it needs money. We could see from the above histogram that most of the borrowers keep the ratio well below 50%.
+
+### Revolving Credit Balance
+
+```{r plot_7_RevolvingCreditBalance, cache=TRUE,echo=FALSE}
+
+ggplot (data = pld_final, aes (x = RevolvingCreditBalance)) +
+  geom_histogram(color = "black", fill = "green") +
+  xlab ("Revolving Credit Balance") +
+  theme_economist ()
+```
+
+```{r plot_8_RevolvingCreditBalance, cache=TRUE,echo=FALSE}
+
+summary (pld_final$RevolvingCreditBalance)
+```
+
+```{r plot_9_RevolvingCreditBalance, cache=TRUE,echo=FALSE}
+
+quantile (pld_final$RevolvingCreditBalance, 0.99, na.rm=T)
+```
+
+```{r plot_10_RevolvingCreditBalance2, cache=TRUE,echo=FALSE}
+
+pld_final_1 <- dplyr::filter (pld_final, RevolvingCreditBalance <= 150862)
+
+ggplot (data = pld_final_1, aes (x = RevolvingCreditBalance)) +
+  geom_histogram (color = "black", fill = "green") +
+  ggtitle ("RevolvingCreditBalance") +
+  theme_economist ()
+```
+
+After limiting the ratio to less or equal to 150862, I included more than 99%
+of the data to get a much finer graphic. The data is right-skewed. 
+
+### Term 
+
+The length of a loan is also an important factor for both the borrower and investor. So let's take a look at this variable.
+
+```{r plot_8_Term, cache=TRUE,echo=FALSE}
+
+pld_final$Term <- factor(pld_final$Term )
+
+ggplot (data = pld_final, aes (x = Term)) +
+  geom_bar (fill = "green") +
+  ggtitle ("Length of the Loan") +
+  theme_economist()
+```
+
+```{r 8_Term, cache = TRUE,echo = FALSE}
+
+table (pld_final$Term)
+```
+
+We could see from this barplot that the majority of the loans has the length of 36 months. About 20% of loans have length of 60 months. Only 1.4% of the loans have length of 12 months.
+
+### Borrower APR
+
+Since borrowers' interest rate is an important factor, let's take a look at this variable.
+
+```{r plot_9_BorrowerAPR, cache = TRUE, echo = FALSE}
+
+ggplot(data = pld_final, aes (x = BorrowerAPR)) + 
+  geom_histogram (color = "black", fill = "green", binwidth = 0.01) +
+  xlab ("Borrower APR") +
+  ggtitle ("BorrowerAPR Distribution") +
+  theme_economist()
+```
+
+```{r, cache = TRUE, echo = FALSE}
+
+summary (pld_final$BorrowerAPR)
+
+```
+We could see that the rate approximately follows a normal distribution with mean around 0.21.
+
+### Loan Purpose 
+
+Next I would like to know the purpose of the loans. Therefore I investigate the listing category variable.
+
+```{r, cache = TRUE, echo = FALSE, plot_11_LoanPurpose_2}
+
+ListingCategory_od <- data.frame (table (prosper_removed$ListingCategoryN))
+
+ListingCategory_od  <- ListingCategory_od %>%
+  dplyr::rename(LoanPurpose = Var1,
+                Counts = Freq) %>%
+  mutate(logCounts = log10(Counts))
+
+## Creating plots 
+
+ggplot (ListingCategory_od,
+        aes (x = reorder( LoanPurpose, Counts), y = log10 (Counts))) +
+  geom_bar (stat = "identity", colour = "black", fill = "green") +
+  ggtitle ("The Purpose of the Loan Listing") +
+  xlab ("ListingCategory") +
+  theme_economist () +
+  coord_flip ()
+```
+
+```{r, cache=TRUE,echo=FALSE}
+
+table (prosper_removed$ListingCategoryN)
+
+```
+
+From the above figure, we could tell that most loans on Prosper are for Debt Consolidation. Excluding the Not Available and Other purposes, most of the loans go into Home Improvement, Business, Auto, and Personal Loan. Categories like RV (recreational vehicle), Boat, Vacation only account a small portion of the loan. Therefore, I conclude that most the people borrow money for necessary needs while not for entrainment.
+
+### Credit Score Range Upper
+
+Since we also have borrower's credit score from credit rating angecies, let's investigate it.
+
+
+```{r plot4, cache = TRUE, echo = FALSE}
+
+ggplot (data = prosper, aes (x = CreditScoreRangeUpper)) +
+  geom_histogram (color = "black", fill = "green", binwidth = 20) +
+  xlab (" Credit Score RangeUpper") +
+  ggtitle ("Borrower's Credit Score Upper Range") +
+  theme_economist ()
+```
+
+```{r summary, cache=TRUE, echo=FALSE}
+
+summary (prosper_removed$CreditScoreRangeUpper)
+```
+
+Surprisingly, the lower (not shown here) and upper range of the borrower's credit score resemble each other. It appears to me that in order to get a Prosper loan, you'd better have a credit score over 620. We also note that there are some outliers near 0. We can see that the Lower Range of Credit Score in this dataset is from 0 to 880, and the Upper Range of Credit Score in this dataset is from 19 to 899. Now it becomes clear that most of the borrower has credit score around 670 to 720, which falls into the category of good.
+
+
+### Loan Status
+
+Now, let's look at the loan performance. As mentioned before because many of the loan statuses represent similar outcomes, I’ve mapped them from prosper loan data’s 7 down to only 2, simplifying the problem of classifying loan outcomes without much loss of information useful for investment decisions
+
+```{r plot5, cache = TRUE,echo = FALSE}
+
+pld_final$LoanStatus <- factor (pld_final$LoanStatus, c ('Performing',
+                                                         'NonPerforming' ))
+
+ggplot (data = pld_final, aes (x = LoanStatus)) +
+  geom_bar (color = "black", fill = "green") +
+  xlab ("Loan Status") +
+  ggtitle ("LoanStatus") +
+  theme_economist ()
+```
+```{r suumary_plot5, cache=TRUE,echo=FALSE}
+
+table(pld_final$LoanStatus)
+```
+
+As can be inferred from chart above, the stack of counts for "Performing" is loans are much higher than the ones under "NonPerforming". Thus fortunately for the LendingClub investors, most of them were able to receive their funds with pre-allocated interest rate. 
+
+```{r plot6_4_3,cache=TRUE,echo=FALSE, warning=FALSE}
+
+Occupation <- data.frame (table (pld_final$Occupation))
+
+Occupation <- Occupation %>%
+  dplyr::rename(Occupation = Var1, Counts = Freq) 
+
+## Create plots for the data 
+
+ggplot(Occupation, aes (x = reorder (Occupation, -Counts), y = Counts)) +
+  geom_bar (stat = "identity", colour = "black", fill = "green") +
+  ggtitle ("Occupation") +
+  xlab ("Occupation") +
+  theme_economist () 
+  
+``` 
+
+```{r plot6_summary, cache = TRUE,echo = FALSE, warning = FALSE}
+
+table (pld_final$Occupation)
+```
+
+We can total loans do vary among different professions. Where people with exective trypes job have more loan than studen or unskilled people.
+
+### Employment Status
+
+```{r plot6_4_5,cache=TRUE,echo=FALSE, warning=FALSE}
+
+ggplot2::ggplot (pld_final, aes (EmploymentStatus )) +
+  ggplot2::geom_bar (colour = "black", fill = "green")  +
+  ggtitle ("Employment Status") +
+  theme_economist ()
+        
+```
+
+
+```{r plot6_4_5_summary, cache = TRUE,echo = FALSE, warning = FALSE}
+table (pld_final$EmploymentStatus)
+```
+
+Evidently there are more people with loan with employement than being unemployed. 
+
+### Employment Status Duration
+
+```{r plot6_4,cache=TRUE,echo=FALSE, warning=FALSE}
+
+ggplot2::ggplot(pld_final, aes(EmploymentStatusDuration)) +
+  ggplot2::geom_histogram(colour = "black", fill = "green") +
+  ggtitle("EmploymentStatusDuration") +
+  theme_economist()  
+```
+
+```{r plot6_4_summary,cache=TRUE,echo=FALSE, warning=FALSE}
+
+summary (pld_final$EmploymentStatusDuration)
+```
+
+I was curious about when does a person get a loan in terms of the length of their working status. Using months as the unit of time, there’s a very clear descending trend of the number of people who borrow loans with the increase of the length of employment. My guess is the longer one works, the more one earns and therefore more savings. With more saving in the bank, people are less likely to borrow loans.
+
+### Is Borrower Homeowner
+
+```{r echo=FALSE,IsBorrowerHomeowner}
+
+pld_final$IsBorrowerHomeowner <- ifelse (pld_final$IsBorrowerHomeowner == 0,
+                                         "No", "Yes")
+
+pld_final$IsBorrowerHomeowner <- factor (pld_final$IsBorrowerHomeowner,
+                                         c("Yes", "No"))
+
+ggplot (data = pld_final, aes (x = IsBorrowerHomeowner)) + 
+  geom_bar (color = "black", fill = "green") +
+  ggtitle ("Is Borrower Homeowner?") +
+  theme_economist ()
+```
+
+```{r echo = FALSE, IsBorrowerHomeownerSummary}
+summary (pld_final$IsBorrowerHomeowner)
+```
+
+As can be seen from the graph above, was not much difference for people with or without home. Though, number of people with loan owning a home are slighlty higher.
+
+### Borrower State
+
+Now, let's look at the borrower's geographical informaiton. I first counted the number of borrowers in each state, then colored the map according to this number.
+
+```{r StateMap, cache = TRUE,echo = FALSE}
+
+borrower_state_info = prosper %>%
+  group_by (BorrowerState) %>%
+  summarise (n = n()) %>%
+  arrange (desc (n))
+```
+
+
+```{r statemap1, results='asis', cache = TRUE,echo = FALSE}
+
+borrower_state_map = 
+  ichoropleth(n ~ BorrowerState, data = borrower_state_info,
+              ncuts = 5, pal = 'PuRd',
+              geographyConfig = list (popupTemplate = "#!function(geo,        
+                                      data) { return '<div                                                           class=\"hoverinfo\"><strong>'                                                  + data.BorrowerState + '<br>' +                                                data.n + '</strong></div>';}!#"))
+
+borrower_state_map$save("myRmap.html", cdn = TRUE)
+
+htmltools::includeHTML("myRmap.html")
+```
+
+As we can see from this map, California, Texas, Georgia, Florida, and New York have the most borrowers. These are the most populous and economically prosperous areas as well. The number of borrowers of different states varies a lot and California, Texas, New York and Florida are the top 4 on the list of state with big borrower market. 
+
+# Univariate Analysis
+
+* For each loan in the file, prosper loan provides an indication of the current loan status. Because many of the loan statuses represent similar outcomes, I simplified the problem of classifying loan outcomes without much loss of information useful for investment decisions. My two outcomes “Performing” and “NonPerforming” seek to separate those loans likely to pay in full from those likely to default. I was mainly interested in LoanPerformance and Debit, since as a lender, the most important thing one cares about is how much will he earn; as a borrower, one cares about how much interests he will pay for. I want to know which variables or factors have impact on these two variables.
+
+* Intuitively, I have found variables like Amount Delinquent, Term, RevolvingCreditBalance, DebtToIncomeRatio, EmploymentStatusDuration, IsBorrowerHomeowner, BorrowerState, Occupation, IncomeRange
+CreditScoreRangeUpper, InquiriesLast6Months, EmploymentStatus, BorrowerAPR more intriguing.       
+
+* Furthermore, to test performance of the loan, I selected and extracted features from the raw data, including loan status, occupation, employment status, loan purpose etc.
+
+* Reduce LoanStatus to three groups:
+    + Performing
+    + NonPerforming
+
+* Reduce LoanStatus to five groups:
+    + HiglySkilled
+    + Skilled
+    + UnSkilled
+    + SemiSkilled
+    + Student
+
+* Reduce LoanStatus to three groups:
+    + Employed
+    + Unemployed
+    + Other
+
+* Reduce the loan purpose to five groups:
+    + Debt Consolidation Loan
+    + Home Improvement Loan
+    + Business Loan
+    + Studen Loan
+    + Personal Loan
+
+
+* The AmountDelinquent and the number of Recommendations are heavily right skewed. Since the majority of these two variables are 0, it would not be appropriate to conduct log transformation. Thus, I didn't perform any operations. But I tuned some parameters when performing data visualisation. Furthermore, missing values were imputed and for exploratory analysis as well as for different model algorithms to be used predict loan performance.
+
+
+# Feature Viusalisation II 
+## Bivariate Plots 
+
+### Correlations Between Feeatures
+
+```{r echo=FALSE,Correlation_plot_1}
+
+# calculate correlation matrix
+
+corrplot (corMatMy, order = "hclust", tl.pos = "n", addrect = 2)
+
+```
+
+Correlations between all features are calculated and visualised with the corrplot package. Here, we have more variation between the features: some are highly correlated, while others seem to be very distinct. 13 are flagged for removal (see output above).I am then removing all features with a correlation higher correlation. 
+
+
+### Loan Status Vs Is Borrower Homeowner
+
+```{r echo = FALSE, Bivariate_Plots9}
+#pld_final$IsBorrowerHomeowner <- ifelse(pld_final$IsBorrowerHomeowner == FALSE, "No", "Yes")
+
+ownership_status <- table (pld_final$LoanStatus, pld_final$IsBorrowerHomeowner)
+
+prop_ownership <- round (prop.table (ownership_status, 2) * 100, 2)
+
+# prop_ownership 
+```
+
+```{r echo=FALSE, Bivariate_Plots1}
+prop_is_home <- table (pld_final$LoanStatus, pld_final$IsBorrowerHomeowner)
+
+prop_is_home <- round (prop.table (prop_is_home , 2) * 100, 2)
+
+prop_is_home_df <- data.frame (prop_is_home)
+
+prop_is_home_df <- prop_is_home_df  %>%
+  dplyr::rename (LoanStatus = Var1, IsBorrowerHomeowner = Var2, Counts = Freq)
+
+prop_is_home_df_1 <- prop_is_home_df %>% 
+  tidyr::spread(LoanStatus, Counts)
+
+## Create heatmap of the data 
+
+ggplot(prop_is_home_df,
+       aes ( y = LoanStatus, x = IsBorrowerHomeowner, fill = Counts)) +
+  geom_tile() + 
+  scale_fill_gradient(low='white',high='red', trans = 'log')
+```
+
+
+```{r echo=FALSE, Bivariate_Plots1_summary}
+ 
+prop_is_home_df_1
+```
+
+As can be seen from the graph above and table, there is no relationship between the Home Ownership and Performing loans. However, of those with having house default the least. In performing loans home ownerships does not make difference that much, but they are still notable.  However, the differences for nonforming loans has prominent effects.
+
+### LoanStatus Vs Debt To Income Ratio
+
+Debt to income ratio indicates the ratio between a borrower’s monthly debt payment and monthly income. This was originally formatted as a continuous numerical variable, but I bucketed it into 5% increments to better visualise the effect on loan performance.
+
+```{r echo=FALSE, Bivariate_Plots3}
+#Debt to Income Ratio (break into factors at 5% levels)
+
+pld_final$DebtToIncomeRatioN <- cut (pld_final$DebtToIncomeRatio, breaks =
+                                       c (0, 5, 10,15))
+
+dti <- table (pld_final$LoanStatus, pld_final$DebtToIncomeRatioN)
+
+prop_dti <- round (prop.table (dti, 2) * 100, 2)
+
+# prop_dti
+
+prop_dti_df <- data.frame(prop_dti)
+
+prop_dti_df <- prop_dti_df  %>%
+  dplyr::rename(LoanPerformance = Var1,
+                DebitToIcnomePercentage = Var2 , Counts = Freq)
+
+prop_dti_df$DebitToIcnomePercentage <-
+  sapply (prop_dti_df$DebitToIcnomePercentage, group_percent_dti)
+```
+
+
+```{r echo=FALSE, Bivariate_Plots3_VCD}
+
+tab = xtabs (Counts ~ LoanPerformance + DebitToIcnomePercentage, 
+             data = prop_dti_df)
+
+mosaic (data = tab, ~ LoanPerformance + DebitToIcnomePercentage, shade = TRUE,        cex=2.5, main = "Debit To Income Ratio : Effect On Loan Performance")
+
+```
+
+```{r echo=FALSE, Bivariate_Plots3_VCD_1}
+
+prop_dti_df 
+```
+
+As we might expect, there is a steady increase in the percentage of non-performing loans as DTI increases, reflecting the constraints that increased debt put onto borrower ability to repay:
+
+### Loan Status Vs Revolving Credit Balance
+
+We can see below that the percentage of non-performing loans steadily increases with revolving credit balance. Borrowers with high utilisation rates are more likely to have high fixed credit card payments which might affect their ability to repay their loans.
+
+```{r echo = FALSE, Revolving_Utilization}
+# Revolving Utilization (break into 0 - 20, then factors of 10, then 80+)
+
+pld_final$RevolvingCreditBalanceN <- cut (pld_final$RevolvingCreditBalance, 
+                                          breaks = c(0, 20, 30, 40, 50, 60, 70,
+                                                     80, 141))
+
+revol_util <- table (pld_final$LoanStatus, pld_final$RevolvingCreditBalanceN)
+
+prop_revol_util <- round (prop.table (revol_util, 2) * 100, 2)
+
+prop_revol_util_df <- data.frame (prop_revol_util)
+
+prop_revol_util_df <- prop_revol_util_df %>%
+  dplyr::rename (LoanPerformance = Var1, RevolvingCreditBalance = Var2,
+                 Counts = Freq)
+
+prop_revol_util_df$RevolvingCreditBalance <-
+  sapply(prop_revol_util_df$RevolvingCreditBalance, group_revolving)
+
+
+revol_util_h <- table (pld_final$LoanStatus, pld_final$RevolvingCreditBalanceN)
+
+revol_util_h_long <- melt(revol_util_h )
+
+colnames (revol_util_h_long) <- c("LoanStatus","RevolvingCredit","Count")
+
+# Creating heatmap of the data 
+
+ggplot (revol_util_h_long, 
+        aes (  x = RevolvingCredit, y = LoanStatus, fill = Count)) +             geom_tile() +
+  scale_fill_gradient (low = 'white',high = 'red', trans = 'log')
+```
+
+```{r echo=FALSE, Revolving_Utilization_Summary}
+# Revolving Utilization (break into 0 - 20, then factors of 10, then 80+)
+              
+prop_revol_util_df
+```
+
+We can see that the percentage of non-performing loans steadily increases with credit revolving rate. Borrowers with high credit revolving rate are more likely to have high fixed credit card payments which might affect their ability to repay their loans. Also, a high utilization rate often reflects a lack of other financing options, with borrowers turning to peer-to-peer lending as a last resort. This is in contrast to those borrowers with low utilization rates, who may be using peer-to-peer lending opportunistically to pursue lower interest payments.
+
+
+### Loan Status Vs Loan Purpose
+
+Loan purpose refers to the borrower’s stated reason for taking out the loan. 
+
+```{r, cache=TRUE,echo=FALSE, Loan_Purpose}
+
+purpose <- table (prosper_removed$LoanStatus, prosper_removed$ListingCategoryN)
+
+prop_purpose <- round (prop.table (purpose, 2) * 100, 2)
+
+prop_purpose_df <- data.frame (prop_purpose)
+
+prop_purpose_df <- prop_purpose_df %>%
+  dplyr::rename(LoanStatus = Var1, LoanPurpose = Var2, Counts = Freq)
+
+prop_purpose_df_1 <- prop_purpose_df %>% 
+  tidyr::spread (LoanStatus, Counts)
+
+## Create plot for the data
+dat2 <- prop_purpose_df
+
+setDT(dat2)
+
+dat5<- dat2[, order := order (Counts),by = LoanStatus]
+
+## Create plot for the data
+
+ggplot (dat5, aes (x = LoanStatus , y = Counts, fill = LoanPurpose, 
+                   group = order)) +
+  geom_bar (aes (group = order), stat = "identity", position = "dodge") +
+  guides (fill = guide_legend(reverse = TRUE)) +
+  theme_economist (base_size = 6)
+```
+
+```{r, cache=TRUE,echo=FALSE, Loan_Purpose_Summary}
+prop_purpose_df_1
+```
+
+We see that credit card and debt consolidation tend to have better performance, along with home improvement, cars, and other major purchases. Luxury spending on vacations and weddings and unexpected medical and moving expenses generally have worse performance. 
+
+```{r, cache=TRUE,echo=FALSE, Loan_Purpose_2}
+
+#pld_final$LoanPurpose <- sapply (pld_final$LoanPurpose, group_loan_purpose)
+
+purpose_2 <- table (prosper_removed$LoanStatus, prosper_removed$LoanPurpose)
+
+prop_purpose_2 <- round (prop.table (purpose_2, 2) * 100, 2)
+
+prop_purpose_df_2 <- data.frame (prop_purpose_2)
+
+prop_purpose_df_2 <- prop_purpose_df_2 %>%
+  dplyr::rename(LoanStatus = Var1,LoanPurpose = Var2, Counts = Freq)
+
+prop_purpose_df_3 <- prop_purpose_df_2 %>%
+  tidyr::spread (LoanStatus, Counts)
+
+
+##
+dat3 <- prop_purpose_df_2
+
+setDT(dat3)
+
+dat4 <- dat3[, order := order (Counts),by = LoanStatus]
+
+## Creat plot for the data
+
+ggplot (dat4, aes (x = LoanStatus , y = Counts, fill = LoanPurpose, 
+                   group = order)) +
+  geom_bar (aes (group = order), stat = "identity", position = "dodge") +
+  guides (fill = guide_legend(reverse = TRUE)) +
+  theme_economist (base_size = 6.5)
+```
+
+```{r, cache=TRUE,echo=FALSE, Loan_Purpose_2_Summary}
+
+prop_purpose_df_3
+```
+
+Furthermore, It was quite notable that small business loans perform very poorly, perhaps reflecting the fact that those borrowers unable to get bank financing for their small business may have poor credit or business plans that aren’t fully developed.
+
+### Loan Status Vs Inquiries Last 6 Months
+
+Number of inquiries refers to the number of times a borrower’s credit report is accessed by financial institutions, which generally happens when the borrower is seeking a loan or credit line. 
+
+```{r, cache=TRUE,echo=FALSE, InquiriesLast6Months}
+# Inquiries in the last 6 months (combine factor levels for any > 4)
+
+pld_final$InquiriesLast6Months <- factor (pld_final$InquiriesLast6Months)
+
+levels (pld_final$InquiriesLast6Months) <- c("0", "1", "2", "3", rep("4+", 46))
+
+inq_last_6mths <- table (pld_final$LoanStatus, pld_final$InquiriesLast6Months)
+
+prop_inq_last_6mths <- round (prop.table(inq_last_6mths, 2) * 100, 2)
+
+prop_inq_last_6mths_df <- data.frame (prop_inq_last_6mths)
+
+
+prop_inq_last_6mths_df <- prop_inq_last_6mths_df %>%
+  dplyr::rename(LoanStatus = Var1, InquiriesLast6Months = Var2, Counts = Freq)
+
+prop_inq_last_6mths_df_1<- prop_inq_last_6mths_df  %>%
+  tidyr::spread (LoanStatus, Counts)
+
+### Plotting the data
+
+ggplot (prop_inq_last_6mths_df,
+        aes (x = InquiriesLast6Months, y = LoanStatus, fill = Counts))+          geom_tile() + 
+  scale_fill_gradient (low = 'white',high = 'red', trans = 'log')
+```
+
+```{r, cache=TRUE,echo=FALSE, InquiriesLast6Months_Summary}
+prop_inq_last_6mths
+```
+
+More inquiries leads to higher rates of nonperformance, perhaps indicating that increased borrower desperation to access credit might highlight poor financial health. Interestingly, we see an increase in loan performance in the 4+ inquiries bucket. These high levels of inquiries may reflect financially savvy borrowers shopping around for mortgage loans or credit cards.
+
+### Loan Status Vs Income Range
+
+As we might expect, the higher a borrower’s annual income the more likely they are to be able to repay their loans. Below I’ve broken the income data into quintiles, and we can see that those in the top 20% of annual incomes ($95000 +) are approximately 6% more likely to be performing borrowers than those in the bottom 20% (less than $42000).
+
+```{r, cache=TRUE,echo=FALSE, IncomeRange}
+
+income_range <- table(pld_final$LoanStatus,pld_final$IncomeRange_2, exclude = c ("Not displayed","Not employed"))
+
+prop_income_range <- round (prop.table(income_range , 2) * 100, 2)
+
+prop_income_range_df <- data.frame (prop_income_range)
+
+
+prop_income_range_df <- prop_income_range_df  %>%
+  dplyr::rename(LoanStatus = Var1, IncomeRange = Var2, Counts = Freq)
+
+prop_income_range_df_1<- prop_inq_last_6mths_df  %>%
+  tidyr::spread (LoanStatus, Counts)
+
+## Creating heatmaps of the data
+
+ggplot (prop_income_range_df,
+        aes (x = IncomeRange, y = LoanStatus, fill = Counts)) +
+  geom_tile () + 
+  scale_fill_gradient (low = 'white',high = 'red', trans = 'log')
+
+```
+
+```{r, cache=TRUE,echo=FALSE, IncomeRange_Summary}
+
+prop_income_range 
+
+```
+
+As the income of the borrower decrease, we see increasing rates of nonperforming loans. Noting that the above trends, this may indicate particularly people with higher incomes are who are maximising their possible borrowing mainly due to their ability to payback loans on time.
+
+### Loan Status Vs Income Verifiable
+
+Prosper loan data categorises income verification into two statuses: not verified, and verified. Verified income means that Lending Club independently verified both the source and size of reported income, and not verified means there was no independent verification of the reported values. 
+
+```{r, cache=TRUE,echo=FALSE, IncomeVerifiable}
+#pld_final$IncomeVerifiable <- ifelse(pld_final$IncomeVerifiable == 0, "No", "Yes")
+
+is_inc_v <- table (pld_final$LoanStatus, pld_final$IncomeVerifiable)
+
+prop_is_inc_v <- round (prop.table (is_inc_v, 2) * 100, 2)
+
+prop_is_inc_v_df <- data.frame (prop_is_inc_v)
+
+
+prop_is_inc_v_df <- prop_is_inc_v_df  %>%
+  dplyr::rename(LoanStatus = Var1, IncomeVerifiable = Var2, Counts = Freq)
+
+prop_is_inc_v_df_1<- prop_is_inc_v_df %>%
+  tidyr::spread (LoanStatus, Counts) 
+
+
+### Plots
+setDT(prop_is_inc_v_df)
+
+prop_is_inc_v_df[, order:= order (Counts), by = LoanStatus]
+
+## Creating plot for the data
+
+ggplot (prop_is_inc_v_df, aes (x = IncomeVerifiable, y = Counts, 
+                               fill = LoanStatus, group = order)) +   
+  geom_bar (aes (group = order), stat = "identity", position = "dodge") +
+  guides (fill = guide_legend(reverse = TRUE)) +
+  theme_economist()
+```
+
+```{r, cache = TRUE,echo = FALSE, IncomeVerifiable_Summary}
+
+prop_is_inc_v_df_1
+```
+
+Interestingly, we see that as income verification increases, the loan performance actually worsens. During the mortgage crisis, non-verified “no-doc” loans were among the worst performing, so the reversal here is interesting. This likely reflects the fact that Lending Club only verifies those borrowers who seem to be of worse credit quality, so there may be confounding variables present here.
+
+### Loan Staus Vs Public Records Last 10Years
+
+Public records generally refer to bankruptcies, so we would expect those with more public records to show worse performance. 
+
+```{r, cache = TRUE,echo = FALSE, PublicRecordsLast10Years}
+# Number of Public Records (break factor levels into 0, 1, 2+)
+
+pld_final$PublicRecordsLast10Years <-factor(pld_final$PublicRecordsLast10Years) 
+levels (pld_final$PublicRecordsLast10Years) <- c("0",  "1" , "2", "3", "4", "5"
+                                                 ,"6"  ,"7" , "8" , "9",
+                                                 rep ("10+", 16))
+
+pub_rec <- table (pld_final$LoanStatus, pld_final$PublicRecordsLast10Years)
+
+prop_pub_rec <- round (prop.table (pub_rec, 2) * 100, 2)
+
+prop_pub_rec_df <- data.frame (prop_pub_rec)
+
+prop_pub_rec_df <- prop_pub_rec_df  %>%
+  dplyr::rename(LoanStatus = Var1, PublicRecordsLast10Years = Var2, 
+                Counts = Freq)
+
+prop_pub_rec_df_1<- prop_pub_rec_df  %>% tidyr::spread (LoanStatus, Counts) 
+
+
+### Creating heatmap of the data
+
+ggplot (prop_pub_rec_df,
+        aes ( y = LoanStatus, x = PublicRecordsLast10Years, fill = Counts)) +    geom_tile() + 
+  scale_fill_gradient (low = 'white',high = 'red', trans = 'log')
+```
+
+```{r, cache=TRUE,echo=FALSE, PublicRecordsLast10Years_Summary}
+prop_pub_rec_df_1
+```
+
+Actually, performance increases as we move from 0 to 1 to 2 public records. This possibly indicates stricter lending standards from Lending Club on those borrowers with public records: We could see that among different income ranges, there are no big differences. All of income levels have small delinquent amount.
+
+
+# Bivariate Analysis
+
+A large number of variables also provided strong indications of expected performance. Among the most telling are debt-to-income ratio, RevolvingCreditBalance, IncomeVerifiable, loan purpose, BorrowerState, inquiries in the past 6 months, and number of total accounts. Verified income status and number of public records show results opposite from what we would expect. This is likely due to increased standards on borrowers with poorer credit history, so all else equal we see outperformance in these loans. 
+
+In performing loans home ownerships does not make difference that much, but they are still notable. However, the differences for nonperforming loans has prominent effects. As we might expect, there was a steady increase in the percentage of non-performing loans as DTI increases, reflecting the constraints that increased debt put onto borrower ability to repay. It was also evident that borrowers with high credit revolving rate were more likely to have high fixed credit revolving payments which might affect their ability to repay their loans. We also saw that credit card and debt consolidation tend to have better performance, along with home improvement, cars, and other major purchases. Luxury spending on vacations and weddings and unexpected medical and moving expenses generally have worse performance.
+
+
+# Feature Viusalisation III
+## Mutlivariate Plots 
+
+The dataset covered an extensive amount of information on the borrower's side that was originally available to lenders when they made investment choices.  By further segmenting the loan dataset into finished cases and current outstanding loans, this project broke down the composition of the default cases and examines the correlation among indicators. In the end, the goal is to provide investors and borrowers, as well as LendingClub, additional insights regarding investment opportunities and contingent loan collection advice. 
+
+### Debt To IncomeRatio, Loan Purpose, LoanStatus
+
+```{r echo=FALSE, Plot_One}
+
+pld_final_1 <- dplyr::filter (pld_final, DebtToIncomeRatio <= 1)
+
+ggplot(pld_final_1, aes (y = DebtToIncomeRatio, 
+                         x = factor(LoanPurpose_1))) +
+  geom_jitter (aes (y = DebtToIncomeRatio, x = factor(LoanPurpose_1),
+                    color = LoanStatus), alpha = 0.4) +
+  geom_boxplot (aes (fill = LoanStatus), alpha = 0.4) +
+  xlab ("Purpose Of Loan") + 
+  theme_economist (base_size = 8)
+
+```
+
+The chart shows debit to income ratio with default and charged off status as a function of loan purposes and loan status. What stands out is the higher than normal defaults for loans for student loans purpose. Loans for business, home improvement, personal purposes have proven to have higher defaults also. Notice how the red and blue points seem to be random, and not really related to either the x and y variables. There may be some weak relationships between these variables. 
+
+
+```{r echo=FALSE, ttest_DebtToIncomeRatio_Loan_Purpose_LoanStatus}
+df <- df_ttest
+
+ttest <- t.test(df [df$LoanStatus == "NonPerforming", "DebtToIncomeRatio"], 
+                df[df$LoanStatus == "Performing", "DebtToIncomeRatio"])
+
+ttest
+```
+
+The means are substantially different for DebtToIncomeRatio between Performing and NonPerforming loans. Therfore, the higher the creditDebtToIncomeRatio the more likely the loan is to perform.
+
+
+### Is Borrower Homeowner, Debt To Income Ratio, LoanStatus
+```{r echo=FALSE, Plot_Three}
+ 
+ggplot(pld_final_1, aes(x = factor(IsBorrowerHomeowner), 
+                      y = DebtToIncomeRatio)) + 
+  geom_jitter (aes (y = DebtToIncomeRatio, x = IsBorrowerHomeowner, 
+                    color = LoanStatus), alpha = 0.4) +
+  geom_boxplot (aes (fill = LoanStatus), alpha = 0.4) +
+  xlab ("Is Borrower Home Owner") + 
+  theme_economist ()
+```
+
+The chart shows debit to income ratio with default and charged off status as a function of home ownership and loan status. The chart seems to be validating impression by lenders that there is slight but noticeable difference for debit to income ratio for people with and without home. It was quite evident by looking at the plot points denser between 0 and 0.50 dti. As for loan purpose, I can't really draw a conclusion here either. Notice how the red and blue points seem to be random, and not really related to either the x and y variables. There may be some weak relationships between these variables, but nothing really jumps out at me when I look at the graph.
+
+
+```{r echo=FALSE, ttest_IsBorrowerHomeowner_Loan_Purpose_LoanStatus}
+
+#df$IsBorrowerHomeowner <- ifelse(df$IsBorrowerHomeowner == "No", 0, 1)
+
+ttest <- t.test(df [df$LoanStatus == "NonPerforming", "IsBorrowerHomeowner"], 
+                df[df$LoanStatus == "Performing", "IsBorrowerHomeowner"])
+
+ttest
+```
+
+Non-performing loans have a significantly lower average Prosper Score than performing loans.
+
+### Term, Debt To Income Ratio, Loan Status
+```{r echo=FALSE, Plot_Five}
+
+pld_final_2 <- dplyr::filter (pld_final, DebtToIncomeRatio <= 1)
+
+ggplot (pld_final_2, aes (x = Term, y = DebtToIncomeRatio)) + 
+  geom_jitter (aes (y = DebtToIncomeRatio, x = Term, 
+                    color = LoanStatus), alpha = 0.4) + 
+  geom_boxplot (aes (fill = LoanStatus), alpha = 0.4) +
+  theme_economist ()
+```
+
+The chart shows debit to income ratio with default and charged off status as a function of loan term and loan status. The loan status of defaults and charged off for loans for 12 months. The chart seems to be validating impression by lenders that debt 36 months is the best followed by 60 months’ term. The interaction between different variables is not clearly visible.
+
+
+### Income Verifiable, Debt To Income Ratio, Loan Status
+```{r echo=FALSE, Plot_Six}
+
+ggplot(pld_final_2, aes (x = IncomeVerifiable, y = DebtToIncomeRatio)) + 
+  geom_boxplot (aes (color = LoanStatus)) +
+  xlab("Income Verifiable ?") +
+  theme_economist ()
+```
+
+It appears that slight difference between verified and unverified income.  However, there appears to be very little/no correlation between IncomeVerifiable and DebtToIncomeRatio.
+
+
+```{r echo=FALSE, ttest_IncomeVerifiable_Loan_Purpose_LoanStatus}
+
+# df$IncomeVerifiable <- ifelse (df$IncomeVerifiable == "No", 0, 1)
+
+ttest <- t.test(df [df$LoanStatus == "NonPerforming", "IncomeVerifiable"], 
+                df[df$LoanStatus == "Performing", "IncomeVerifiable"])
+
+ttest
+```
+
+Now let’s look at IncomeVerifiable vs. Loan Performance. Do income that worse up front actually perform worse in reality? How predictive are certain “knowns” at the start of the process?. The means are substantially different for IncomeVerifiable between Performing and Non-Performing loans. Therfore, the higher the credit score, the more likely the loan is to perform.
+
+
+### Debt To Income Ratio, Borrower APR, Loan Status
+```{r echo=FALSE, Plot_Eight}
+ggplot(pld_final_1, aes (x = DebtToIncomeRatio, y = BorrowerAPR)) +
+  geom_jitter (aes (color = LoanStatus)) +
+  geom_smooth () +
+  theme_economist ()
+```
+
+We can see by looking at the graph that BorrowerAPR are denser near that blue line (the mean). We can also see looking at the sheer amount of points that there are more loans with lower delinquencies than there are with higher delinquencies. It is evident from graph, BorrowerAPR is more spread out at the lower debit to income ratios. There is hardly or very weak correlation between these two variables.
+
+
+### Delinquencies Last 7Years, Revolving Credit Balance, Loan Status
+```{r echo=FALSE, Plot_Ten}
+
+ggplot(pld_final, aes ( x = DelinquenciesLast7Years, 
+                        y = RevolvingCreditBalance)) +                      
+  geom_jitter (aes(color = LoanStatus)) +
+  geom_smooth () +
+  scale_y_log10() +
+  theme_economist() 
+            
+```
+
+We can see by looking at the graph that revolvingcreditbalance are denser near that blue line (the mean). We can also see looking at the sheer amount of points that there are more loans with lower delinquencies than there are with higher delinquencies. It's hard to really draw a conclusion from the data, however. It may seem, for instance, that RevolvingCreditBalance is more spread out at lower delinquencies. But it's hard to tell, because there are just more points that have lower delinquencies, so there will be more "extreme" points at that end even if the proportion of extreme points is the same. As for loan status, I can't really draw a conclusion there either. Notice how the red and blue points seem to be random, and not really related to either the x and y variables. There may be some weak relationships between these variables, but nothing really jumps out at me when I look at the graph. Sometimes, if you can't see a relationship by looking at the graph, it just may not exist.
+
+
+# Building a Model
+
+Now it's time to build a model to classify people into two groups: Performing or NonPerforming loans.
+
+### Logistic Regression
+
+Logistic Regression is a type of classification model. In classification models, we attempt to predict the outcome of categorical dependent variables, using one or more independent variables. The independent variables can be either categorical or numerical. Logistic regression is based on the logistic function, which always takes values between 0 and 1. Replacing the dependent variable of the logistic function with a linear combination of dependent variables we intend to use for regression, we arrive at the formula for logistic regression.
+
+
+### Building a Logistic Regression Model
+
+Now it is time to build our model! Let's begin by doing a final "sub-setting" of our data by removing the features we won't be using and making sure that the features are of the correct data type.
+
+
+```{r echo=FALSE, Modeling_1}
+pld_model_selection <- pld_14 %>%
+  dplyr::select(
+    IncomeRange,
+    IncomeVerifiable,
+    AmountDelinquent,
+    DelinquenciesLast7Years,
+    DebtToIncomeRatio,
+    RevolvingCreditBalance,
+    Term,
+    BorrowerAPR,
+    LoanPurpose,
+    CreditScoreRangeUpper,
+    InquiriesLast6Months,
+    LoanStatus,
+    Occupation,
+    EmploymentStatus,
+    EmploymentStatusDuration,
+    IsBorrowerHomeowner,
+    BorrowerState
+)
+
+dim (pld_model_selection)
+```
+```{r echo=FALSE, Modeling_2}
+# Convertable variables to factors 
+model_pld <- pld_model_selection
+
+model_pld$LoanPurpose <- sapply (model_pld$LoanPurpose, group_loan_purpose)
+
+model_pld$LoanStatus  <- factor (model_pld$LoanStatus)
+
+model_pld$IncomeRange <- factor (model_pld$IncomeRange)
+
+model_pld$IncomeVerifiable <- factor (model_pld$IncomeVerifiable)
+
+model_pld$IsBorrowerHomeowner <- factor (model_pld$IsBorrowerHomeowner)
+
+model_pld$EmploymentStatus <- factor (model_pld$EmploymentStatus)
+
+model_pld$Occupation <- factor (model_pld$Occupation )
+
+model_pld$LoanPurpose <- factor (model_pld$LoanPurpose)
+
+model_pld$BorrowerState <- factor(model_pld$BorrowerState)
+
+model_pld$Term <- factor (model_pld$Term)
+```
+
+```{r echo=FALSE, Modeling_3}
+
+str (model_pld)
+```
+
+### Train Test Split
+
+Split the data into a train and test set using the caTools library as done in previous lectures. Reference previous solutions notebooks if you need a refresher.
+
+```{r echo=FALSE, Modeling_4}
+# Set a random see so your "random" results are the same as this notebook
+set.seed (101) 
+
+# Split up the sample, basically randomly assigns a booleans to a new column "sample"
+sample <- sample.split (model_pld$LoanStatus, SplitRatio = 0.70) # SplitRatio = percent of sample==TRUE
+
+# Training Data
+train = subset (model_pld, sample == TRUE)
+
+# Testing Data
+test = subset (model_pld, sample == FALSE)
+```
+
+Use all the features to train a glm() model on the training data set, pass the argument family=binomial(logit) into the glm function.
+
+```{r echo=FALSE, Modeling_5}
+
+model_train = glm (LoanStatus ~ ., family = binomial(logit), data = train)
+
+summary (model_train)
+```
+
+Then, I  used step () function to create a new model. This was basically to have an idea which of the features are most inmportant to predict loan performance. 
+
+```{r echo=FALSE, Modeling_6}
+
+new.step.model <- step (model_train)
+
+summary (new.step.model)
+
+```
+
+One should have noticed that the step () function kept all the features used previously! While I used the AIC criteria to compare models, there are other criteria we could have used. 
+
+Confusion Matrix : Let's continue on and see how well our model performed against the test set. Create a confusion matrix using the predict function with type='response' as an argument inside of that function.
+
+```{r echo=FALSE, Modeling_7}
+test$predicted.LoanStatus = predict (model_train, newdata = test, 
+                                     type = "response")                          
+
+table(test$LoanStatus, test$predicted.LoanStatus > 0.5)
+```
+
+Model Accuracy: Our model apparently did good job in predicting loan performace with an accuracy of 85%. 
+
+```{r echo=FALSE, Modeling_8}
+
+accuracy <- (1083 + 27706) / (1083 + 27706 + 4642 + 872)
+cat("Model Accuracy is ::",  round (accuracy, 2) * 100, "%")
+```
+
+
+# Multivariate Analysis
+
+With multivariate analysis, we tried to show default and charged off status as a function of different variables and loan status. What stood out was the higher than normal defaults for loans were for student loans purpose. The data seemed to be validating impression by lenders that there was slight but noticeable difference for debit to income ratio for people with and without home. It was also observed that that loan performance for 36 months is the best followed by 60 months’ term. The interaction between different variables is not clearly visible. We did not notice any, presence of if any/little correlation between IncomeVerifiable and DebtToIncomeRatio. 
+
+However, multivariate Analysis did not show much of interaction between different variables as one can see in above plots. In most of cases the data was more spread out. But it was hard to tell, because there are just more points that have lower values, or so there will be more "extreme" points at that end even if the proportion of extreme points is the same. As for loan status, I can't really draw a conclusion there either. Notice in above plots how the red and blue points seem to be random, and not really related to either the x and y variables. There may be some weak relationships between these variables, but nothing really jumps out at me when I look at the graph.
+
+Nonetheless, I also developed a predictive model for projecting the probability of default for newly issued loans using logistic regression. I’ve gotten a good understanding of the available borrower data, and we’ve seen which variables give the best indications of future loan performance. I have found following features interesting bases on AIC criteria to compare models, there are other criteria we could have used. I also tried to use RandomForest to select for important features. However, because of size of the data. I could not accomplish that.
+
+   - AmountDelinquent
+   - RevolvingCreditBalance
+   - DebtToIncomeRatio        
+   - IncomeVerifiable        
+   - EmploymentStatusDuration  
+   - IsBorrowerHomeowner      
+   - Term                    
+   - BorrowerState           
+   - Occupation                
+   - CreditScoreRangeUpper    
+   - IncomeRange              
+   - InquiriesLast6Months     
+   - EmploymentStatus         
+   - BorrowerAPR  
+
+------
+
+# Final Plots and Summary
+
+### Plot One
+```{r echo=FALSE, Plot_One1}
+
+pld_final$LoanStatus <- factor (pld_final$LoanStatus, c('Performing' ,                                                                 'NonPerforming' ))
+
+ggplot(data = pld_final, aes(x = LoanStatus)) + 
+  geom_bar(color = "black", fill = "green") +
+  xlab("Loan Status") +
+  ggtitle("LoanStatus") +
+  theme_economist()
+```
+
+We can see from the chart above that rates of majority of loans performed pretty well. This show algorithm used to determine a borrower’s level of risk, and then set the interest rates according to the level of risk works pretty well. It can be inferred from chart above, the stack of counts for "Performing" is loans are much higher than the ones under "NonPerforming". Thus, fortunately for the LendingClub investors, most of them were able to receive their funds with pre-allocated interest rate.
+
+### Plot Two
+```{r echo=FALSE, Plot_Two1}
+
+tab = xtabs (Counts ~ LoanPerformance + DebitToIcnomePercentage, 
+             data = prop_dti_df)
+
+mosaic(data = tab, ~ LoanPerformance + DebitToIcnomePercentage, shade = TRUE,
+       cex= 2.5, main = "Debit To Income Ratio : Effect On Loan Performance")
+```
+
+Debt to income ratio indicates the ratio between a borrowers monthly debt payment and monthly income. This was originally formatted as a continuous numerical variable, but I bucketed it into 5% increments to better visualise the effect on loan performance. As we might expect, there is a steady increase in the percentage of non-performing loans as DTI increases, reflecting the constraints that increased debt put onto borrower ability to repay:
+
+
+### Plot Three
+```{r echo=FALSE, Plot_One_}
+
+pld_final_1 <- dplyr::filter (pld_final, DebtToIncomeRatio <= 1)
+
+ggplot(pld_final_1, aes (y = DebtToIncomeRatio, 
+                         x = factor(LoanPurpose_1))) +
+  geom_jitter (aes (y = DebtToIncomeRatio, x = factor(LoanPurpose_1),
+                    color = LoanStatus), alpha = 0.4) +
+  geom_boxplot (aes (fill = LoanStatus), alpha = 0.4) +
+  xlab ("Purpose Of Loan") + 
+  theme_economist (base_size = 8)
+
+```
+
+The chart shows debit to income ratio with default and charged off status as a function of loan purposes and loan status. What stands out is the higher than normal defaults for loans for student loans purpose. Loans for business, home improvement, personal purposes have proven to have higher defaults also.Notice how the red and blue points seem to be random, and not really related to either the x and y variables. There may be some weak relationships between these variables, but nothing really jumps out at me when I look at the graph. Sometimes, if you can't see a relationship by looking at the graph, it just may not exist.
+
+------
+
+# Reflection
+
+The Prosper loan data set has 113,937 transaction record with 81 variables. I explored 17 out of these 81 variables. To begin with I looked at missing data. I removed variables where we had more than 8 % missing data. I noticed data with missing values ranging from 1 to 85 in some cases. I wanted to fill in missing age data instead of just dropping the missing age data rows. I used “mice” R package for the imputation of missing values. The mice package in R, helps you imputing missing values with plausible data values. These plausible values are drawn from a distribution specifically designed for each missing data point. I extracted data the feature engineered some fields. I also eliminated a few indicative data fields that are repetitive or too granular to be analysed, and make some formatting changes to get the data ready for analysis. Finally, I mapped the loan statuses to the binary “Performing” and “NonPerforming” classifiers. Then I carried out exploratory data analysis using various plots to check how these variable are distributed and to get the feeling of the data. To further understand this dataset, I also visualised the interaction between two variables. A large number of the other variables provided strong indications of expected performance. Among the most telling are debt-to-income ratio, BorrowerState, BorrowerAPR, home ownership status, loan purpose, income range, inquiries in the past 6 months, and term. Furthermore, verified income status and number of public records show results opposite from what we would expect. This is likely due to increased standards on borrowers with poorer credit history, so all else equal we see outperformance in these loans. 
+
+This dataset posed a couple of difficulties to begin with, like unequal distribution of data points across variables and missing data. This makes the exploratory analysis and modeling inherently prone to flaws. However, real life data isn’t perfect either, so I went ahead and tested the success anyway. By accounting for uncertain classification with low predictions probability, the validation data could be classified accurately. However, for a more accurate model, these few cases don’t give enough information to reliably predict the outcome. More cases, more information (i.e. more features) and fewer missing data would improve the modeling outcome. By exploratory analysis and using simple algorithm like logistics regression I was able to short list the variables which could have predictive power for loan performance. I reduced number of categorical variables to small number of classes. This enabled me to have manageable and meaning features to explain prosper loan data. The data seize was colossal to run locally. It was big hindrance for me to have selection of feature importance as well running high end models like randomForest etc. Personally, I think randomForest modelling could be vital tool in predicting loan performance. As it would not only enable me to have prediction of loan performance more accurately but also to rank the features important in disentangling underlying patterns and trends in our data set. 
+
+This analysis succeeded in predicting loan performance with accuracy of 84 % as well as deciphering the underlying correlative relationship between features of interest. However, this example is only applicable for this project. There are 81 features in the dataset, and I only selected 17 of these from prosper loan dataset. In order to be able to draw more general conclusions about loan performance outcome, other features and additional information, for example all parameters, demographic information, etc. would be necessary to make more reliable predictions. All in all, this dataset served as a nice example of the possibilities (and pitfalls) of exploratory and machine learning applications and showcases a basic workflow for building prediction models with R.
+
+------
