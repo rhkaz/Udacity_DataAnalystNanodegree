@@ -1,0 +1,7 @@
+(lp0
+S'poi'
+p1
+aI0
+aI1
+aI2
+a.
