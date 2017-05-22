@@ -65,7 +65,7 @@ df.ix[:,:15] = df.ix[:,:15].fillna(0)
 
 ### impute missing values of email features 
 email_features = ['to_messages', 'from_messages', 'from_this_person_to_poi', 'from_poi_to_this_person']
-imp = Imputer(missing_values='NaN', strategy='median', axis=0)
+imp = Imputer(missing_values ='NaN', strategy = 'median', axis = 0)
 df.loc[df[df.poi == 1].index,email_features] = imp.fit_transform(df[email_features][df.poi == 1])
 df.loc[df[df.poi == 0].index,email_features] = imp.fit_transform(df[email_features][df.poi == 0])
 
@@ -93,7 +93,7 @@ df.ix['BHATNAGAR SANJAY']
 
 
 ### Task 2: Remove outliers
-df = df.drop(['TOTAL', 'LAVORATO JOHN J', 'MCMAHON JEFFREY'],0)
+df = df.drop(['TOTAL', 'LAVORATO JOHN J', 'MCMAHON JEFFREY'], 0)
 
 ### Task 3: Create new feature(s)
 ### create additional feature: fraction of person's email to POI to all sent messages
@@ -114,9 +114,10 @@ clf.fit(df.ix[:,1:], df.ix[:,:1])
 features_importance = []
 for i in range(len(clf.feature_importances_)):
     if clf.feature_importances_[i] > 0:
-        features_importance.append([df.columns[i+1], clf.feature_importances_[i]])
-features_importance.sort(key=lambda x: x[1], reverse = True)
+        features_importance.append([df.columns[i + 1], clf.feature_importances_[i]])
+features_importance.sort(key = lambda x: x[1], reverse = True)
 print "Feature selection with DecisionTreeClassifier:"
+
 for f_i in features_importance:
     print f_i
 features_list = [x[0] for x in features_importance]
@@ -174,8 +175,8 @@ df_norm = scaler.fit_transform(df_norm.ix[:,1:])
 ### feature selection
 from sklearn.feature_selection import SelectKBest
 from sklearn.feature_selection import f_classif
-features_list2 = ['poi'] + range(3)
-my_dataset = pd.DataFrame(SelectKBest(f_classif, k = 8).fit_transform(df_norm, df.poi), index = df.index)
+features_list2 = ['poi']+range(3)
+my_dataset = pd.DataFrame(SelectKBest(f_classif, k=8).fit_transform(df_norm, df.poi), index = df.index)
 
 
 ### PCA
