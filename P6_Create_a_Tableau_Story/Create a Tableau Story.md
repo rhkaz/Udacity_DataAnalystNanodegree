@@ -4,7 +4,7 @@
 
 ### Visualisation, Tableau Public and GitHub Links
 
-the project files can be viewed on gist from each of these links : [Tableau Public Story 1](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_2_HistoricalDefaultRatesofProsperLoanData/Story_2_HistoricalDefaultRatesofProsperLoanData)  :::: [Tableau Public Story 2](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_HistoricalDefaultRatesofProsperLoanData/Story_1_HistoricalDefaultRatesofProsperLoanData).  
+the project files can be viewed on gist from each of these links : [Tableau Public Story 1](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_2_HistoricalDefaultRatesofProsperLoanData/Story_2_HistoricalDefaultRatesofProsperLoanData)  :::: [Tableau Public Story 2](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_2_HistoricalDefaultRatesofProsperLoanData/Story_2_HistoricalDefaultRatesofProsperLoanData). :::: [Tableau Public Story 2_V2](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_2_HistoricalDefaultRatesofProsperLoanData_V2/Story_2_HistoricalDefaultRatesofProsperLoanData_V2)
 
 And for sure the github repository [GitHub](https://github.com/rhkaz/Udacity_DataAnalystNanodegree).  
 
@@ -12,20 +12,41 @@ And for sure the github repository [GitHub](https://github.com/rhkaz/Udacity_Dat
 
 ### Summary  
 
-Lending Club is the world’s largest peer-to-peer lending company, offering a platform for borrowers and lenders to work directly with one another, eliminating the need for a financial intermediary like a bank
+> Lending Club is the world’s largest peer-to-peer lending company, offering a platform for borrowers and lenders to work directly with one another, eliminating the need for a financial intermediary like a bank
 visit [Prosper.com](https://www.prosper.com/).     
 
-  + I filled in missing data instead of just dropping the missing data rows. I used “mice” R package for the imputation of missing values. The mice package in R, helps you imputing missing values with plausible data values. These plausible values are drawn from a distribution specifically designed for each missing data point. 
 
-  + I extracted data the feature engineered some fields. I also eliminated a few indicative data fields that are  repetitive or too granular to be analysed, and make some formatting changes to get the data ready for analysis. 
++ I filled in missing data instead of just dropping the missing data rows. I used “mice” R package for the imputation of missing values. The mice package in R, helps you imputing missing values with plausible data values. These plausible values are drawn from a distribution specifically designed for each missing data point. 
+
+
++ I extracted data the feature engineered some fields. I also eliminated a few indicative data fields that are  repetitive or too granular to be analysed, and make some formatting changes to get the data ready for analysis. 
   
-  + Finally, I mapped the loan statuses to the binary “Performing” and “NonPerforming” classifiers.
   
-  + Then I carried out exploratory data analysis using various plots to check how these variable are contribute to performance of the loan.
++ Finally, I mapped the loan statuses to the binary “Performing” and “NonPerforming” classifiers.
   
-  + To further understand this dataset, I also visualised the interaction between two variables. 
   
-  + Number of the variables provided strong indications of expected performance. Among them most telling are loan purpose, BorrowerState,  Debt-To-Income Ratio, Burrower Rate etc
++ Then I carried out exploratory data analysis using various plots to check how these variable are contribute to performance of the loan.
+  
+  
++ To further understand this dataset, I also visualised the interaction between number of variables indorder to understand the relationships asscoiated with loan performance. 
+
+
++ Tableau visualisation of Prosper Loan Data identifies the most hidden patterens and trends in the dataset. Thus, providing predictive power for determining expected loan performance.
+ 
+ 
++ I wanted to have my inttuion going what are are the main indicators of a quality of borrowers e.g Proser Rating (both numeric & alphabet)
+
+ 
++ I exploed variables Lender Yield and Borrower Rate and see which other related variables have the most effect on it.  This was very important step to observe any interesting relationships between the other features i.e. relationship between (Prosper Rating and Lender Yield) and (Prosper Rating and Borrower Rate). 
+
+
++ Among them most telling are loan purpose, BorrowerState,  Debt-To-Income Ratio, Burrower Rate etc
+
++ The chart confirmed that although there is higher lending yield for lower rating. Thus, the investors should also takes a look at the risk of the loan being defaulted. We have seen very clear in charts as the rating get worsen, the higher chance the loan getting defaulted.
+
+
+> Through Tableau story telling; We’ve gotten a good understanding of the available borrower data, and we’ve seen which variables give the best indiciations of future loan performance.
+
 
 --------
 
@@ -53,7 +74,13 @@ Make sure you de-select the single dot on your first visualization before upload
 The two slides about the positive association between risk and return doesn't seem to be immediately clear to support the message. For the "Higher risk means higher returns" one, maybe you want to switch to a different graph type, for example, use a scatterplot to show the relationship at individual borrower level. For the second one, maybe you don't need it if you improve the first one?
 Hope this is helpful! 
 
-I changed the title of the graphs to make it more understandable, 
+I changed the title of the graphs to make it more understandable. Furthermore, I have created number of other viusalisation to make the story more coherent. I looked at how higher rating is associated with better yeild as well as I have created small multiples of propser rating, monthly income and thier relationship to loan orgination year.  As someone who’s completely new to the industry, I did not fully comprehend there’s a very linear and strong relationship between borrower rate and lender yield intially, howver, it was unfolded later on during bivariate analysis.
+
+Furthermore, I also had a  closer look for lender yield vs prosper rating. The majority of loans opt-in for 36-month term and the return for 36-month and 60-month are just higher than 12-month, also considering the fact there’re less loan in 12-month term than other term.
+
+These charts boasted my ablity to glean into the loan perfomeance. It seemed apparently prosper must have optimised their model throughout the year and as we see the borrower throughout the year, the variation between borrower rate as  not that significant anymore and we tend to have smaller standard deviation year-over-year. Something worth noticing is the amount of borrowing suddenly decreased in 2013.
+
+
 
 > George Liu
 Forum Mentor
@@ -70,3 +97,8 @@ The loans dataset https://s3.amazonaws.com/udacity-hosted-downloads/ud651/prospe
 
 -------------------------
 
+
+
+```python
+
+```
