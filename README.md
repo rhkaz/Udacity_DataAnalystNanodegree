@@ -58,4 +58,4 @@ Create a data visualization from a data set that tells a story or highlights tre
 
 [Tableau Public](https://public.tableau.com/profile/rashid.kazmi#!/vizhome/Story_2_HistoricalDefaultRatesofProsperLoanData/Story_2_HistoricalDefaultRatesofProsperLoanData)
 
-![Certificate Data Analyst Nanodegree](https://github.com/rhkaz/Udacity_DataAnalystNanodegree/blob/master/DataAnalyst_Degree.jpg)
+[Certificate Data Analyst Nanodegree](https://github.com/rhkaz/Udacity_DataAnalystNanodegree/blob/master/DataAnalyst_Degree.jpg)
